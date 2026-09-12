@@ -1,0 +1,22 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Runtime state: the database, the vector index and the model cache are all
+# generated, so they are not source artifacts. `data/` is ignored wholesale rather
+# than by subdirectory - listing the subdirectories individually left files like
+# data/server.log untracked-but-committed, which is how a stray log ends up in a
+# repository.
+kbhub.db
+kbhub.db-wal
+kbhub.db-shm
+data/
+uploads/
+logs/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.egg-info/
+.claude

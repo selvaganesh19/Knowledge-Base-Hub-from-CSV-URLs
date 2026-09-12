@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Knowledge Base Hub{% endblock %}</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%236ea8fe'/></svg>">
+</head>
+<body>
+  {% set path = request.url.path %}
+  <header class="topbar">
+    <a class="brand" href="/"><span class="mark"></span>Knowledge Base Hub</a>
+    <nav>
+      <a href="/" class="{{ 'active' if path == '/' else '' }}">Dashboard</a>
+      <a href="/upload" class="{{ 'active' if path == '/upload' else '' }}">Upload</a>
+      <a href="/urls" class="{{ 'active' if path.startswith('/urls') else '' }}">URLs</a>
+      <a href="/search" class="{{ 'active' if path == '/search' else '' }}">Search</a>
+      <a href="/docs" target="_blank" rel="noopener">API</a>
+    </nav>
+    <span class="spacer"></span>
+    {% block topbar_right %}
+      {% if llm_provider is defined %}
+        <span class="pill {{ 'ok' if llm_provider != 'none' else 'off' }}"
+              title="{{ 'LLM configured: answers are synthesized with citations' if llm_provider != 'none' else 'No LLM key configured: search returns retrieval results only' }}">
+          {{ 'LLM: ' + llm_provider if llm_provider != 'none' else 'LLM: off' }}
+        </span>
+      {% endif %}
+    {% endblock %}
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

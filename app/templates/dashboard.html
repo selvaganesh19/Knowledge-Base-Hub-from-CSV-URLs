@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Knowledge Base Hub{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Knowledge Base</h1>
+  <p class="lead">
+    Upload a file of URLs to harvest them, index their content for semantic search,
+    and query the result in plain language.
+  </p>
+</div>
+
+<div class="panel">
+  <form class="searchbar" onsubmit="event.preventDefault(); window.location.href='/search?q=' + encodeURIComponent(this.q.value);">
+    <input type="search" name="q" placeholder="Ask about executives, leadership, founders, CEOs…" autocomplete="off">
+    <button type="submit">Search</button>
+  </form>
+</div>
+
+<h2 class="section">Crawl summary</h2>
+<div class="grid cols-4">
+  <a class="stat link" href="/urls"><div class="value">{{ stats.urls }}</div><div class="label">URLs</div></a>
+  <a class="stat link ok" href="/urls?status=SUCCESS"><div class="value">{{ counts.success }}</div><div class="label">Crawled</div></a>
+  <a class="stat link warn" href="/urls?status=PARTIAL"><div class="value">{{ counts.partial }}</div><div class="label">Partial</div></a>
+  <a class="stat link blocked" href="/urls?status=BLOCKED"><div class="value">{{ counts.blocked }}</div><div class="label">Blocked</div></a>
+</div>
+
+<div class="grid cols-4" style="margin-top:12px">
+  <a class="stat link error" href="/urls?status=FAILED"><div class="value">{{ counts.failed }}</div><div class="label">Failed</div></a>
+  <a class="stat link" href="/search"><div class="value">{{ stats.chunks }}</div><div class="label">Chunks indexed</div></a>
+  <a class="stat link" href="/search"><div class="value">{{ stats.vectors }}</div><div class="label">Vectors in FAISS</div></a>
+  <a class="stat link" href="/urls"><div class="value">{{ stats.people }}</div><div class="label">People extracted</div></a>
+</div>
+
+{% if active_jobs %}
+  <h2 class="section">Running now</h2>
+  {% for job in active_jobs %}
+    <div class="panel" data-job-id="{{ job.id }}">
+      <div class="job">
+        <div class="job-head">
+          <strong>{{ job.kind | capitalize }} · job #{{ job.id }}</strong>
+          <span class="job-msg" data-job-message>{{ job.message }}</span>
+        </div>
+        <div class="progress"><div data-job-bar style="width: {{ job.percent }}%"></div></div>
+      </div>
+    </div>
+  {% endfor %}
+{% endif %}
+
+{% if not stats.urls %}
+  <div class="panel empty" style="margin-top:20px">
+    <h2>No data yet</h2>
+    <p>
+      Upload <span class="mono">Leadership URL.xlsx</span> — or any CSV with a URL
+      column — to harvest the pages, build the vector index, and start searching.
+    </p>
+    <a class="button" href="/upload">Upload a file</a>
+  </div>
+{% endif %}
+
+{% if batches %}
+  <h2 class="section">Upload batches</h2>
+  <div class="panel tight">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th class="narrow">#</th>
+            <th>File</th>
+            <th class="num narrow">URLs</th>
+            <th class="num narrow">Skipped</th>
+            <th class="narrow">URL column</th>
+            <th class="narrow">Status</th>
+            <th class="narrow">Uploaded</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in batches %}
+            <tr>
+              <td class="faint narrow">{{ item.id }}</td>
+              <td>{{ item.original_filename }}</td>
+              <td class="num narrow"><a href="/urls?batch={{ item.id }}">{{ item.url_count }}</a></td>
+              <td class="num narrow {{ 'faint' if not item.skipped_rows else '' }}">{{ item.skipped_rows }}</td>
+              <td class="mono narrow muted">{{ item.url_column }}</td>
+              <td class="narrow">
+                <span class="badge {{ 'badge-ok' if item.status == 'done' else 'badge-muted' }}">{{ item.status }}</span>
+              </td>
+              <td class="faint narrow">{{ item.uploaded_at | dt }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+
+{% if recent_searches %}
+  <h2>Recent searches</h2>
+  <div class="panel tight">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Query</th>
+            <th class="num narrow">Results</th>
+            <th class="narrow">Answer</th>
+            <th class="narrow">Provider</th>
+            <th class="num narrow">Latency</th>
+            <th class="narrow">When</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in recent_searches %}
+            <tr>
+              <td><a href="/search?q={{ item.query | urlencode }}">{{ item.query | shorten(80) }}</a></td>
+              <td class="num narrow">{{ item.result_count }}</td>
+              <td class="narrow">
+                {% if item.llm_used %}
+                  <span class="badge badge-ok">synthesized</span>
+                {% else %}
+                  <span class="badge badge-muted">retrieval only</span>
+                {% endif %}
+              </td>
+              <td class="mono narrow muted">{{ item.provider }}</td>
+              <td class="num narrow faint">{{ item.latency_ms }} ms</td>
+              <td class="faint narrow">{{ item.created_at | dt }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/urls.js"></script>
+{% endblock %}

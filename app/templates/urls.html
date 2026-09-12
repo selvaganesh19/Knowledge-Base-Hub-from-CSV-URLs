@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Harvested URLs · Knowledge Base Hub{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Harvested URLs</h1>
+  <p class="lead">
+    Every URL that has been harvested, with its HTTP status, the metadata pulled
+    from the page, and what was derived from it. Raw HTML is stored for each row
+    and viewable on the detail page.
+  </p>
+</div>
+
+<div class="panel">
+  <form method="get" action="/urls" class="form-row">
+    <div>
+      <label for="batch">Upload batch</label>
+      <select id="batch" name="batch">
+        <option value="">All batches</option>
+        {% for option in batches %}
+          <option value="{{ option.id }}" {% if batch == option.id %}selected{% endif %}>
+            #{{ option.id }} · {{ option.original_filename }} ({{ option.url_count }} URLs)
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label for="status">Outcome</label>
+      <select id="status" name="status">
+        <option value="">All outcomes</option>
+        {% for value, label in status_filters %}
+          <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="flex:0 0 auto">
+      <button type="submit">Apply filters</button>
+    </div>
+  </form>
+</div>
+
+<div class="grid cols-5 summary-row">
+  <div class="stat"><div class="value">{{ counts.total }}</div><div class="label">URLs</div></div>
+  <div class="stat ok"><div class="value">{{ counts.success }}</div><div class="label">Crawled</div></div>
+  <div class="stat warn"><div class="value">{{ counts.partial }}</div><div class="label">Partial</div></div>
+  <div class="stat blocked"><div class="value">{{ counts.blocked }}</div><div class="label">Blocked</div></div>
+  <div class="stat error"><div class="value">{{ counts.failed }}</div><div class="label">Failed</div></div>
+</div>
+
+<h2 class="section">{{ urls | length }} row{{ '' if urls | length == 1 else 's' }}</h2>
+
+<div class="panel tight">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="narrow">#</th>
+          <th>URL</th>
+          <th class="status-col">Status</th>
+          <th class="narrow">HTTP</th>
+          <th class="narrow">Method</th>
+          <th class="num narrow">Chunks</th>
+          <th class="num narrow">People</th>
+          <th class="narrow">Fetched</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in urls %}
+          <tr>
+            <td class="faint narrow">{{ row.id }}</td>
+            <td class="url-cell">
+              <a class="link" href="/urls/{{ row.id }}" title="{{ row.url }}">{{ row.url }}</a>
+              {% if row.title %}
+                <div class="sub" title="{{ row.title }}">{{ row.title | shorten(90) }}</div>
+              {% endif %}
+            </td>
+            <td class="status-col">
+              <span class="{{ row.crawl_status | crawl_badge }}">{{ row.crawl_status | crawl_label }}</span>
+              {% if row.error %}
+                <div class="sub error" title="{{ row.error }}">{{ row | human_reason | shorten(46) }}</div>
+              {% endif %}
+            </td>
+            <td class="narrow">
+              <span class="{{ row.http_status | badge(row.error) }}">{{ row.http_status or "—" }}</span>
+            </td>
+            <td class="mono narrow faint">{{ row.scraping_method or "—" }}</td>
+            <td class="num narrow {{ 'faint' if not row.chunk_count else '' }}">{{ row.chunk_count }}</td>
+            <td class="num narrow {{ 'faint' if not row.person_count else '' }}">{{ row.person_count }}</td>
+            <td class="faint narrow">{{ row.fetched_at | dt }}</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="8">
+              <div class="empty">
+                <h2>Nothing harvested yet</h2>
+                <p>Upload a CSV or Excel file containing URLs to start building the knowledge base.</p>
+                <a class="button" href="/upload">Upload a file</a>
+              </div>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/urls.js"></script>
+{% endblock %}

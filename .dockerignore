@@ -1,0 +1,27 @@
+# Keep the build context small and avoid shipping local state into the image.
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+*.egg-info
+
+# Local state - the container builds its own under /data.
+data
+logs
+uploads
+data/documents
+kbhub.db
+kbhub.db-wal
+kbhub.db-shm
+
+# Local configuration, including API keys, must never be baked into an image.
+.env
+
+# Task inputs and docs are not needed at runtime.
+*.xlsx
+tests
+README.md

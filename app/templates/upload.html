@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Upload · Knowledge Base Hub{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Upload URLs</h1>
+  <p class="lead">
+    Select a CSV or Excel file containing URLs. Each one is harvested, stored in
+    SQLite with its raw HTML, then chunked and embedded into the vector index.
+    Person records are extracted from each page at the end of the pipeline.
+  </p>
+</div>
+
+<div class="grid cols-2">
+  <div>
+    <div class="panel">
+      <form id="upload-form">
+        <div class="dropzone" id="dropzone" role="button" tabindex="0"
+             aria-label="Choose a CSV or Excel file to upload">
+          <input type="file" id="file" name="file" accept=".csv,.tsv,.txt,.xlsx,.xlsm">
+          <div id="dropzone-prompt">
+            <strong>Choose a file</strong> or drag it here
+            <div class="hint">CSV or Excel (.xlsx) · the URL column is detected automatically</div>
+          </div>
+          <div class="filename" id="dropzone-file" hidden></div>
+        </div>
+
+        <div class="form-row" style="margin-top:16px">
+          <div>
+            <label for="batch-name">Batch label <span class="faint">(optional)</span></label>
+            <input type="text" id="batch-name" name="name" placeholder="Leadership pages">
+          </div>
+          <div>
+            <label for="url-column">URL column <span class="faint">(optional override)</span></label>
+            <input type="text" id="url-column" name="url_column" placeholder="Auto-detected">
+          </div>
+        </div>
+
+        <div style="margin-top:18px; display:flex; gap:12px; align-items:center; flex-wrap:wrap">
+          <button type="submit" id="submit-button">Upload and harvest</button>
+          <span class="faint small">Robots.txt is respected; raw HTML is kept for every page.</span>
+        </div>
+      </form>
+    </div>
+
+    <div id="result" style="margin-top:16px"></div>
+  </div>
+
+  <div>
+    <div class="panel">
+      <h3>What happens next</h3>
+      <ol class="muted small" style="padding-left:18px; margin:0">
+        <li>The file is parsed and a URL column is identified from the header and the values.</li>
+        <li>Each URL is fetched concurrently, with redirects followed and robots.txt honoured.</li>
+        <li>Page text is extracted and stored alongside the raw HTML in SQLite.</li>
+        <li>Text is split into overlapping chunks and embedded into the FAISS index.</li>
+        <li>An LLM pass extracts structured person records from each page.</li>
+      </ol>
+    </div>
+
+    <div class="panel">
+      <h3>Expect some failures</h3>
+      <p class="muted small" style="margin:0">
+        Pages that return 403, redirect away, or render client-side are stored as
+        rows with the reason recorded — they are not silently dropped. A batch
+        always runs to completion even when individual URLs fail.
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/upload.js"></script>
+{% endblock %}

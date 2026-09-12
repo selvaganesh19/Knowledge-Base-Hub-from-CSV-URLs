@@ -1,0 +1,9 @@
+Company,URL,Note
+Apple,https://www.apple.com/in/leadership/,static leadership page
+Oracle,https://www.oracle.com/in/corporate/executives/,static leadership page
+Northwind,http://127.0.0.1:8099/northwind_leadership.pdf,local PDF document
+Microsoft,https://www.microsoft.com/,known to block scrapers
+Amazon,https://www.amazon.com/,javascript-rendered
+Localhost,http://localhost/admin,should be refused by the SSRF guard
+Bad,not-a-url,should be counted invalid
+Apple again,https://www.apple.com/in/leadership/,duplicate of row 1

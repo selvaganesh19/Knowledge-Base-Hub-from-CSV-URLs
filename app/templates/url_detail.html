@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}{{ row.title | shorten(60) or row.url }} · Knowledge Base Hub{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>{{ row.title or "Harvested URL" }}</h1>
+  <p class="lead"><a href="{{ row.final_url or row.url }}" target="_blank" rel="noopener">{{ row.url }}</a></p>
+</div>
+
+{% if row.error %}
+  <div class="banner {{ 'error' if row.error.startswith('HTTP') else 'warn' }}">
+    <strong>{{ row | human_reason }}</strong>
+    <div class="sub" style="margin-top:4px">
+      Technical detail: <span class="mono">{{ row.error }}</span>
+    </div>
+  </div>
+{% endif %}
+
+<div class="grid cols-4">
+  <div class="stat"><div class="value">{{ row.chunk_count }}</div><div class="label">Indexed chunks</div></div>
+  <div class="stat"><div class="value">{{ people | length }}</div><div class="label">People extracted</div></div>
+  <div class="stat"><div class="value">{{ row.word_count }}</div><div class="label">Words of clean text</div></div>
+  <div class="stat"><div class="value">{{ (row.raw_html or "") | length }}</div><div class="label">Raw HTML characters</div></div>
+</div>
+
+<h2 class="section">Response</h2>
+<div class="panel tight">
+  <div class="table-wrap">
+    <table class="meta-table">
+      <tr>
+        <th>Crawl outcome</th>
+        <td>
+          <span class="{{ row.crawl_status | crawl_badge }}">{{ row.crawl_status | crawl_label }}</span>
+        </td>
+      </tr>
+      <tr>
+        <th>HTTP status</th>
+        <td><span class="{{ row.http_status | badge(row.error) }}">{{ row.http_status or "—" }}</span></td>
+      </tr>
+      {% if row.error %}<tr><th>Failure reason</th><td class="error-text">{{ row.error }}</td></tr>{% endif %}
+      <tr>
+        <th>Scraping method</th>
+        <td class="mono">{{ row.scraping_method or "—" }}</td>
+      </tr>
+      <tr><th>Requested URL</th><td class="mono">{{ row.url }}</td></tr>
+      <tr><th>Final URL</th><td class="mono">{{ row.final_url or "—" }}</td></tr>
+      {% if row.canonical_url %}
+        <tr><th>Canonical URL</th><td class="mono">{{ row.canonical_url }}</td></tr>
+      {% endif %}
+      <tr><th>Domain</th><td class="mono">{{ row.domain or "—" }}</td></tr>
+      <tr><th>Content type</th><td class="mono">{{ row.content_type or "—" }}</td></tr>
+      <tr>
+        <th>Fetched</th>
+        <td>{{ row.fetched_at | dt }}{% if row.fetch_ms %} <span class="faint">({{ row.fetch_ms }} ms)</span>{% endif %}</td>
+      </tr>
+      <tr><th>Meta description</th><td class="muted">{{ row.meta_description or "—" }}</td></tr>
+      <tr><th>Batch</th><td><a href="/urls?batch={{ row.batch_id }}">#{{ row.batch_id }}</a></td></tr>
+    </table>
+  </div>
+</div>
+
+{% if row.meta_json %}
+  <h2 class="section">Metadata</h2>
+  <div class="panel tight">
+    <div class="table-wrap">
+      <table class="meta-table">
+        {% for key, value in row.meta_json.items() %}
+          <tr><th>{{ key }}</th><td class="mono">{{ value }}</td></tr>
+        {% endfor %}
+      </table>
+    </div>
+  </div>
+{% endif %}
+
+{% if people %}
+  <h2 class="section">People extracted</h2>
+  <div class="grid cols-3">
+    {% for person in people %}
+      <div class="card">
+        <div class="name">{{ person.name }}</div>
+        {% if person.title %}<div class="title">{{ person.title }}</div>{% endif %}
+        {% if person.company %}<div class="org">{{ person.company }}</div>{% endif %}
+        {% if person.bio %}<div class="bio">{{ person.bio | shorten(280) }}</div>{% endif %}
+        <div class="meta">
+          {% if person.email %}<div>{{ person.email }}</div>{% endif %}
+          {% if person.phone %}<div>{{ person.phone }}</div>{% endif %}
+          {% if person.location %}<div>{{ person.location }}</div>{% endif %}
+          {% if person.linkedin_url %}
+            <div><a href="{{ person.linkedin_url }}" target="_blank" rel="noopener">LinkedIn</a></div>
+          {% endif %}
+          {% if person.confidence is not none %}
+            <div class="score">confidence {{ "%.2f" | format(person.confidence) }}</div>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% if chunks %}
+  <h2 class="section">Indexed chunks</h2>
+  <div class="panel">
+    {% for chunk in chunks %}
+      <details>
+        <summary>
+          Chunk {{ chunk.ordinal }} · {{ chunk.heading or "no heading" }} · {{ chunk.text | length }} characters
+        </summary>
+        <div class="small" style="white-space: pre-wrap">{{ chunk.text }}</div>
+      </details>
+    {% endfor %}
+  </div>
+{% endif %}
+
+<h2 class="section">Raw content</h2>
+<div class="panel">
+  <details>
+    <summary>Extracted text ({{ (row.text_content or "") | length }} characters)</summary>
+    {% if row.text_content %}
+      <pre class="raw">{{ row.text_content }}</pre>
+    {% else %}
+      <p class="muted small">
+        No text could be extracted. The page may be JavaScript-rendered — the raw
+        HTML below is still stored, so nothing was lost.
+      </p>
+    {% endif %}
+  </details>
+  <details>
+    <summary>Raw HTML ({{ (row.raw_html or "") | length }} characters)</summary>
+    {% if row.raw_html %}
+      <pre class="raw" id="raw-html">{{ row.raw_html }}</pre>
+    {% else %}
+      <p class="muted small">Nothing was stored for this row.</p>
+    {% endif %}
+  </details>
+  <p class="faint tiny" style="margin:12px 0 0">
+    The full raw HTML is also available at
+    <a href="/api/urls/{{ row.id }}" target="_blank" rel="noopener">/api/urls/{{ row.id }}</a>.
+  </p>
+</div>
+{% endblock %}

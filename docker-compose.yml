@@ -1,0 +1,64 @@
+# Local deployment.
+#
+#   docker compose up --build
+#
+# Then open http://127.0.0.1:8000.
+#
+# Set GROQ_API_KEY (or GEMINI_API_KEY) in .env before starting to get synthesized
+# answers and person extraction. The app runs without them.
+
+services:
+  kbhub:
+    build:
+      context: .
+      args:
+        EMBEDDING_MODEL: ${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
+    image: kbhub:latest
+    container_name: kbhub
+    restart: unless-stopped
+    ports:
+      - "${KBHUB_PORT:-8000}:8000"
+
+    # Compose reads .env from this directory for the substitutions below, so keys
+    # are picked up without them being baked into the image. Empty keys are fine:
+    # the app degrades to retrieval-only results.
+    environment:
+      # Mutable state, mounted below.
+      KBHUB_DATA_DIR: /data
+      # Keeps the baked-in model cache out of the data volume.
+      KBHUB_MODEL_CACHE_DIR: /opt/models
+
+      LLM_PROVIDER: ${LLM_PROVIDER:-auto}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
+      GROQ_FALLBACK_MODELS: ${GROQ_FALLBACK_MODELS:-openai/gpt-oss-20b,qwen/qwen3.8-27b}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.0-flash}
+
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
+      SEARCH_MIN_SCORE: ${SEARCH_MIN_SCORE:-0.25}
+      SCRAPE_WORKERS: ${SCRAPE_WORKERS:-6}
+      RESPECT_ROBOTS: ${RESPECT_ROBOTS:-1}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+    volumes:
+      # The database, FAISS index, uploads and logs all live here. Without a
+      # volume the whole knowledge base is lost when the container is replaced.
+      - kbhub-data:/data
+
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+    # Harvests are network- and CPU-bound; keep the container from starving the host.
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 3g
+
+volumes:
+  kbhub-data:

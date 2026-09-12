@@ -1,0 +1,4 @@
+ID,URL,Note
+1,https://www.apple.com/in/leadership/,HTML leadership page
+2,https://www.oracle.com/in/corporate/executives/,HTML executive list
+3,http://127.0.0.1:8099/northwind_leadership.pdf,PDF document (see examples/README)

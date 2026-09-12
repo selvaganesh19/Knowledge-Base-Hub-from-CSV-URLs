@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Search · Knowledge Base Hub{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <h1>Search</h1>
+  <p class="lead">
+    Ask a question in plain language. The query is embedded, matched against the
+    vector index, and the retrieved passages are used to produce an answer with
+    citations — alongside the person records found on those pages.
+  </p>
+</div>
+
+<div class="panel">
+  <form id="search-form" class="searchbar">
+    <input type="search" id="query" name="q" autocomplete="off" autofocus
+           placeholder="Ask about executives, leadership, founders, CEOs…" value="{{ initial_query }}">
+    <button type="submit" id="search-button">Search</button>
+    <button type="button" id="clear-button" class="ghost" hidden>Clear</button>
+  </form>
+  <div class="suggestions" id="suggestions">
+    {% for suggestion in suggestions %}
+      <a class="chip" href="/search?q={{ suggestion | urlencode }}">{{ suggestion }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+<div id="search-status" class="muted small" style="margin-top:16px"></div>
+<div id="search-output" style="margin-top:4px"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/search.js"></script>
+{% endblock %}
