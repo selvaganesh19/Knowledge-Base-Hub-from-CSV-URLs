@@ -14,9 +14,13 @@ it and a card for the person it is about.
 
 ---
 
+
 ## Demo
 
-**▶ [`Demo Video/knowledge base url.mp4`](Demo%20Video/knowledge%20base%20url.mp4)** — end-to-end walkthrough:
+
+https://github.com/user-attachments/assets/1e6a9c77-79fa-4f72-9e96-7fec37a6a461
+
+** end-to-end walkthrough:
 upload a CSV, watch the crawl progress and its per-URL outcomes, then query the
 knowledge base and get an answer with citations and person cards.
 
