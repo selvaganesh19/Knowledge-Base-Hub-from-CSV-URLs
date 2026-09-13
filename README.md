@@ -44,7 +44,7 @@ knowledge base and get an answer with citations and person cards.
 - [Tests](#tests)
 - [Configuration](#configuration)
 - [Deployment](#deployment)
-- [Development notes](#development-notes)
+- [Documentation](#documentation)
 - [Notes and limitations](#notes-and-limitations)
 
 ---
@@ -201,8 +201,7 @@ docker run -e KBHUB_DATA_DIR=/data -v mydata:/data -p 8000:8000 kbhub:latest
 
 ### 1. Upload
 
-**Upload** takes a `.csv` or `.xlsx` file — drag and drop, or click to browse. The
-sample `Leadership URL.xlsx` and an equivalent `leadership_urls.csv` are in the repo.
+**Upload** takes a `.csv` or `.xlsx` file — drag and drop, or click to browse. Sample spreadsheets such as `Leadership URL.xlsx`, `MNC_Knowledge_Base_URLs.xlsx`, and `Vector_Database_Knowledge_Base_URLs.xlsx` are available in the [`Input files/`](Input%20files/) folder.
 
 The URL column is detected automatically: a header matching `url|link|website|...`
 gets a strong prior, and the fraction of values that look like `http(s)://...` does
@@ -778,184 +777,17 @@ cap is per response, and `SCRAPE_WORKERS` responses can be in flight at once.
 
 ---
 
-## Development notes
+## Documentation
 
-Everything below is the working record: what I had to assume, what went wrong, how
-long each piece took, and what I would do differently. The time figures are
-estimates from the session, not stopwatch measurements, and cover implementation
-and testing for each task rather than elapsed wall-clock.
+Comprehensive project documentation and development records are available in the [`Documentation/`](Documentation/) directory located at the root of this repository:
 
-### Questions I had to answer myself
-
-The brief left several things open. Where a decision was genuinely the requester's
-I asked; where a sensible default existed I took it and recorded why.
-
-| Question | Decision |
+| Document | Description |
 |---|---|
-| Which framework? The brief said Django preferred. | Asked. **FastAPI**, as directed. |
-| Which LLM model? The brief named nothing. | Chose Groq, then had to replace `llama-3.3-70b-versatile` when Groq retired it mid-build. |
-| How should person data be extracted — deterministic or LLM? | **Both.** Neither alone was sufficient; see below. |
-| Should a JavaScript-heavy page that yields nothing be a success or a failure? | **A failure.** `PARTIAL`, not `SUCCESS`. A `200` is not evidence of content. |
-| Should Crawl4AI be mandatory? | Asked. Kept optional, since it needs a ~150 MB browser and a heavy dependency tree. |
-| How to handle a site that actively blocks scrapers? | **Record it and move on.** `BLOCKED`, with a reason. Bypassing a WAF or CAPTCHA is out of scope by design. |
-
-### Assumptions I made
-
-* **One row per CSV URL, by default.** Link discovery is off unless
-  `DISCOVER_LINKED_PAGES=1`. The brief supplies an explicit URL list, so silently
-  crawling a whole site would be surprising.
-* **The dataset is dozens of pages, not millions.** `IndexFlatIP` is exact and
-  fast at this size; an approximate index would add recall loss for no benefit.
-* **A single process owns the index.** The FAISS index and the job registry are
-  per-process state, so `workers=1` is structural rather than a preference.
-* **`text_content` is the cleaned markdown.** The brief listed a separate
-  `markdown_content` field; storing both would duplicate the same string in two
-  columns that can drift apart, so there is one field.
-* **Local development may need loopback.** The SSRF guard is on by default, with
-  `ALLOW_PRIVATE_HOSTS=1` set locally because the demo PDF is served from
-  `127.0.0.1`. That must be `0` in any real deployment.
-
-### Difficulties encountered
-
-Each of these cost real time, and most were found by testing against live sites
-rather than by reasoning about the code.
-
-**The crawler lied.** The largest problem in the project. `microsoft.com` answered
-with HTTP 200 and "Your request has been blocked." — stored as a *successful*
-harvest with one chunk, which was then embedded and made searchable. `amazon.com`
-returned 202 with an empty body and was recorded as "no extractable text". Both
-looked healthy in the UI while contributing nothing. The fix was to stop treating
-the HTTP status as the outcome and classify the *content*.
-
-**A block page extracts to nothing.** The check above initially read only the
-extracted text — and Amazon's AWS WAF challenge extracts to a single character, so
-it looked like an empty page rather than a refusal. It only worked once the check
-also scanned the raw HTML for product markers (`gokuProps`, `cf-chl-`).
-
-**Trafilatura over-pruned a page into uselessness.** Oracle's executive list came
-back as 1,248 characters of job titles with every name stripped, because the names
-sit in `<strong>` tags inside linked cards that it classifies as navigational. The
-DOM-walk fallback's tag list omitted `strong` and `a` — exactly where the data was.
-
-**The pattern extractor produced confident nonsense.** First working version found
-"Ron Sugar Former" as a person — the regex swallowed the word "Former" as a third
-name word. Later, "Gary Miller Customer Success" and "Rob Duhart Chief Security".
-A wrong name on a person card is presented as fact, which is worse than no card,
-so the extractor now truncates at the first role word and at UI text.
-
-**`reset()` was silently undone.** `persist()` called `ensure_loaded()`, which saw
-the on-disk index as newer than a just-reset in-memory one and reloaded it over the
-top — writing stale vectors back. Only caught by asserting on the index contents
-after a rebuild.
-
-**A sync handler cannot create an async task.** `POST /api/reindex/` returned 500
-because FastAPI ran the sync handler in a threadpool where `asyncio.create_task`
-has no running loop. Declaring it `async` was the whole fix.
-
-**Windows: uvicorn's event loop cannot spawn a browser.** Playwright launches
-Chromium as a subprocess; `SelectorEventLoop` on Windows raises
-`NotImplementedError` for that, and uvicorn installs a Selector loop whenever it
-runs the app in a child process — which `reload=True` does. The browser worked in
-every standalone script and died under the documented entrypoint. See the note on
-testing below.
-
-**My own test was wrong.** While investigating the above I "proved" the loop was
-fine — because I set the event-loop policy *inside* a running `asyncio.run()`,
-where it has no effect. Both runs used the same loop and both passed. Constructing
-the loop explicitly exposed the real behaviour.
-
-**Console encoding produced two false alarms.** A CLI crash printing non-ASCII to
-a cp1252 console, and a person name that looked like it contained a lone surrogate
-but was really a U+FFFD from the source page. Both cost time chasing data bugs that
-did not exist.
-
-**I broke my own index twice.** Deleting rows with direct SQL bypassed the
-application's vector removal, orphaning 80 and then 27 vectors. The app never does
-this — the indexer removes vectors before deleting chunks — but it showed the
-rebuild-from-SQLite path works, which is what it exists for.
-
-### Time taken per task
-
-Estimates, ordered as the work happened.
-
-| # | Task | Time |
-|---|---|---|
-| 1 | Repository audit, scaffold, config, database models | ~40 min |
-| 2 | CSV/XLSX reader, URL-column detection, upload endpoint | ~35 min |
-| 3 | Async scraper, robots.txt, extraction fallbacks | ~60 min |
-| 4 | Chunking, embeddings, FAISS store, indexing job | ~50 min |
-| 5 | Search pipeline, ranking, citations, person cards | ~55 min |
-| 6 | Groq integration, graceful degradation, provider fallbacks | ~30 min |
-| 7 | Server-rendered UI: dashboard, upload, list, detail, search | ~75 min |
-| 8 | Test suite foundation and isolation strategy | ~45 min |
-| 9 | Docker, logging, README, deployment notes | ~35 min |
-| 10 | Groq model replacement after retirement | ~15 min |
-| 11 | Document ingestion (PDF, DOCX, text) | ~50 min |
-| 12 | Log noise, false-success pages, stale-chunk bug | ~55 min |
-| 13 | Crawl outcomes, content-quality gate, retry with backoff | ~70 min |
-| 14 | SSRF guard, upload limits, validation summary | ~40 min |
-| 15 | Deterministic person extraction (no API key needed) | ~65 min |
-| 16 | Schema sync + backfill for existing databases | ~40 min |
-| 17 | UI: summary cards, status badges, section headings, People tab removal | ~50 min |
-| 18 | Crawl4AI engine as an optional, additive crawler | ~60 min |
-| 19 | Windows event-loop fix + URL table layout bug | ~55 min |
-| | **Total** | **~16 h** |
-
-The figures are honest but approximate. Roughly a third of the total went on
-testing and fixing what testing found, rather than writing new features.
-
-### Other Observations
-
-**On the brief.** The requirement to expose raw HTML through `GET /api/urls/`
-conflicts with the requirement to make that endpoint pleasant to use. A single
-leadership page is ~200 KB of markup; returning it for every row makes the list
-response unusable. The resolution — omit the heavy fields by default, report their
-lengths, and always include them on the detail endpoint — is documented in the
-README, and `include_html=1` satisfies the requirement literally.
-
-**On person extraction, the most interesting problem here.** Neither approach is
-sufficient alone:
-
-* The **LLM** reads prose ("Jane has led the company since 2019 as its chief
-  executive") but is unavailable without a key, and on these pages it
-  over-extracts — Apple's board list yields people whose listed organisations are
-  *other* companies. It produced ~90 records from 12 URLs.
-* The **pattern matcher** is precise and needs nothing, but only reads structure:
-  a name adjacent to a role. It misses prose entirely and found ~50.
-
-They are merged with the model's fields winning, which is the wrong way round for
-precision. **I would invert that** and let the pattern matcher win on name and
-title, using the model only for biography and contact details it alone can read.
-I did not make that change because it alters what search returns, and I had no
-labelled set to measure it against — changing it on a hunch would be guessing.
-
-**On crawling, the honest position.** No crawler reliably handles arbitrary URLs,
-and this one does not either. Amazon is blocked by AWS WAF. Microsoft is blocked
-over plain HTTP but readable through Crawl4AI's fetcher. `theorg.com` yields 484
-characters without a browser and 4,171 with one. The valuable property is not
-success but **honesty about failure**: every URL ends in a specific state with a
-reason, and a page that yields nothing is never recorded as a success. A blocked
-page that says "blocked" is more useful than a silent partial success.
-
-**Retrieval is the weak point, not crawling.** Chunking is fixed-size with overlap
-and no semantic awareness. On a question about Perplexity the answer text said the
-source "does not list any individuals" while the person cards beside it correctly
-named three executives — the retrieval had picked a header chunk that lacked
-names, while the extraction pass had seen the whole page. Sentence-aware or
-heading-aware chunking would fix this, and structured person records should
-participate in retrieval rather than only being attached to results afterwards.
-
-**Crawl4AI earns its place, but only conditionally.** With Chromium it recovers
-8.6× more text on a JavaScript SPA. Without it, it still beat httpx on two real
-sites through better fingerprinting alone. Against that: it pulls a vendored
-litellm fork, `shapely`, `nltk` and three Playwright packages, and its markdown
-keeps more navigation chrome than trafilatura. Worth it if JavaScript matters to
-your sources; not worth it otherwise.
-
-**What I would do next, in order.** Retrieval quality (semantic chunking, people
-in retrieval); a labelled question set so ranking changes can be measured rather
-than argued; then moving the index and job registry into a dedicated worker
-process, which is what unlocks horizontal scaling.
+| 📄 **[Documentation Index](Documentation/README.md)** | Index overview and summary of the project documentation |
+| ❓ **[Questions & Assumptions](Documentation/questions-and-assumptions.md)** | Decisions left open in the brief, choices made, and core assumptions |
+| ⚠️ **[Difficulties Encountered](Documentation/difficulties.md)** | Detailed breakdown of 14 technical problems faced, root causes, and resolutions |
+| ⏱️ **[Development Time](Documentation/development-time.md)** | Task-by-task breakdown of development time (~16 hours total) |
+| 💡 **[Other Observations](Documentation/other-observations.md)** | Architectural insights, retrieval limits, and future improvement roadmap |
 
 ---
 
